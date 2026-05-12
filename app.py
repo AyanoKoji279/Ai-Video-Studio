@@ -143,9 +143,8 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
                     clip = ImageClip(path).set_duration(3)
                 else:
                     clip = VideoFileClip(path).without_audio()
-                clip = clip.resize(height=TARGET_SIZE[1])
-                if clip.w < TARGET_SIZE[0]:
-                    clip = clip.resize(width=TARGET_SIZE[0])
+                clip = clip.with_effects([Resize(height=TARGET_SIZE[1])])
+                if clip.w < TARGET_SIZE[0]: clip = clip.with_effects([Resize(width=TARGET_SIZE[0])])
                 clip = clip.set_position("center").crop(x_center=clip.w/2, y_center=clip.h/2, width=TARGET_SIZE[0], height=TARGET_SIZE[1])
                 visual_clips.append(clip)
             except:
@@ -263,4 +262,5 @@ if st.button("🎥 Generate Video Now", type="primary"):
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
             st.exception(e)
+            
             
