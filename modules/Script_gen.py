@@ -56,7 +56,6 @@ def generate_script(topic: str, duration: int) -> dict:
         data = json.loads(text)
         return data
     except json.JSONDecodeError:
-        # Fallback if JSON parsing fails
         return {
             "full_text": raw_text,
             "scenes": [
