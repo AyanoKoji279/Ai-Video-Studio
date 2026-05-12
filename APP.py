@@ -16,7 +16,7 @@ with st.sidebar:
     st.header("⚙️ Settings")
     video_topic = st.text_area("Video Topic / Script Idea", "5 mind-blowing facts about space")
     duration = st.slider("Target Duration (seconds)", 15, 60, 30)
-    bg_music = st.selectbox("Background Music", ["lofi", "epic", "suspense", "none"], index=0)
+   bg_music = st.selectbox("Background Music", ["lofi", "epic", "suspense", "none"], index=3)
     use_ai_images = st.checkbox("Use AI images instead of stock videos", False)
     caption_style = st.selectbox("Caption Style", ["bold yellow", "clean white", "neon green"], index=0)
     voice_speed = st.selectbox("Voiceover Speed", ["normal", "fast", "slow"], index=0)
