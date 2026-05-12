@@ -54,7 +54,7 @@ if st.button("🎥 Generate Video Now", type="primary"):
                 image_paths = generate_ai_image(script_data["scenes"])
                 video_clips = image_paths
             else:
-                video_clips = fetch_pexels_videos(script_data["search_terms"])
+                video_clips = fetch_pexels_videos(script_data["scenes"])
 
             # Step 4: Assemble final video
             progress_bar.progress(80, text="Assembling video with music...")
