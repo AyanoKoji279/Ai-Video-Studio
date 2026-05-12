@@ -5,11 +5,11 @@ import requests
 import json
 import asyncio
 import tempfile
-from moviepy.editor import (
+from moviepy import (
     VideoFileClip, ImageClip, AudioFileClip, CompositeVideoClip,
     concatenate_videoclips, TextClip, ColorClip, CompositeAudioClip
 )
-from moviepy.video.fx import resize
+from moviepy.video.fx import Resize
 import edge_tts
 import numpy as np
 
