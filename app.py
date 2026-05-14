@@ -3,18 +3,16 @@ import os
 import time
 import requests
 import json
-import asyncio
-import tempfile
+from gtts import gTTS
 from moviepy import (
     VideoFileClip, ImageClip, AudioFileClip, CompositeVideoClip,
     concatenate_videoclips, TextClip, ColorClip, CompositeAudioClip
 )
 from moviepy.video.fx import Resize
-import edge_tts
 import numpy as np
 
-# ------------------ API KEYS & URLs ------------------
-PEXELS_API_KEY = "AgHEaR9dq3fsg71hRFkq8gr8SPHW3HpebnUXsCfKVtvr7GA1SI0azZYf"
+# ------------------ HARDCODED PEXELS KEY (replace later with Secrets) ------------------
+PEXELS_API_KEY = "j3dwRDel85FRc3fduxWS68SapKOpRoZYIx7Oa07QmtDMZS3U0A7k32uO"
 PEXELS_URL = "https://api.pexels.com/videos/search"
 
 # ------------------ HELPERS ------------------
@@ -32,9 +30,9 @@ CAPTION_STYLES = {
 }
 TARGET_SIZE = (1080, 1920)
 
-# ------------------ SCRIPT GENERATION (Free Pollinations API, no key) ------------------
+# ------------------ SCRIPT GENERATION (Free Pollinations API) ------------------
 def generate_script(topic: str, duration: int) -> dict:
-    word_count = duration * 2  # rough estimate
+    word_count = duration * 2
     prompt = f"""
     You are a viral content scriptwriter. Write a voiceover script about:
     "{topic}"
@@ -77,16 +75,11 @@ def generate_script(topic: str, duration: int) -> dict:
             "captions": [{"text": raw_text[:30], "start_time": 0, "end_time": duration}]
         }
 
-# ------------------ VOICEOVER (Edge TTS, free) ------------------
-async def _generate_edge(text, filepath, voice="en-US-AriaNeural", rate="+0%"):
-    comm = edge_tts.Communicate(text, voice, rate=rate)
-    await comm.save(filepath)
-
+# ------------------ VOICEOVER (gTTS, free) ------------------
 def generate_voiceover(text: str, speed: str = "normal", filename: str = "voiceover.mp3") -> str:
-    rate_map = {"slow": "-20%", "normal": "+0%", "fast": "+20%"}
-    rate = rate_map.get(speed, "+0%")
     output_path = os.path.join(OUTPUT_AUDIO, filename)
-    asyncio.run(_generate_edge(text, output_path, rate=rate))
+    tts = gTTS(text=text, lang="en", slow=(speed == "slow"))
+    tts.save(output_path)
     return output_path
 
 # ------------------ STOCK VIDEOS (Pexels API) ------------------
@@ -227,11 +220,11 @@ with st.sidebar:
     bg_music = st.selectbox("Background Music", ["lofi", "epic", "suspense", "none"], index=3)
     use_ai_images = st.checkbox("Use AI images instead of stock videos", False)
     caption_style = st.selectbox("Caption Style", ["bold yellow", "clean white", "neon green"], index=0)
-    voice_speed = st.selectbox("Voiceover Speed", ["normal", "fast", "slow"], index=0)
+    voice_speed = st.selectbox("Voiceover Speed", ["normal", "slow"], index=0)  # gTTS supports normal/slow
 
     st.markdown("---")
     st.markdown("### 🔑 API Status")
-    # Only Pexels key is needed now
+    # Pexels key is hardcoded for now
     if PEXELS_API_KEY:
         st.success("Pexels key set")
     else:
@@ -239,7 +232,7 @@ with st.sidebar:
 
 if st.button("🎥 Generate Video Now", type="primary"):
     if not PEXELS_API_KEY:
-        st.error("Please set PEXELS_API_KEY in environment variables (or Streamlit secrets).")
+        st.error("Pexels API key not set.")
     else:
         try:
             progress_bar = st.progress(0, text="Starting...")
@@ -271,5 +264,3 @@ if st.button("🎥 Generate Video Now", type="primary"):
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
             st.exception(e)
-            
-            
