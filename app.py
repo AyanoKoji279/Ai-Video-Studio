@@ -263,6 +263,7 @@ if st.button("🎥 Generate Video Now", type="primary"):
             st.error(f"An error occurred: {str(e)}")
             st.exception(e)
             
+            
 
             
             
