@@ -53,9 +53,22 @@ def generate_script(topic: str, duration: int) -> dict:
     )
 
     if response.status_code != 200:
-        raise Exception(f"Text generation error: {response.status_code} {response.text}")
+        # If the API fails, use a hardcoded fallback script
+        return {
+            "full_text": f"{topic}. This is an automated video about {topic}. Stay tuned for more.",
+            "scenes": [{"text": topic, "duration": duration, "search_term": topic}],
+            "captions": [{"text": topic, "start_time": 0, "end_time": duration}]
+        }
 
     raw_text = response.json().get("content", "")
+
+    # If the response is empty, use fallback
+    if not raw_text.strip():
+        return {
+            "full_text": f"{topic}. This is an automated video about {topic}. Stay tuned for more.",
+            "scenes": [{"text": topic, "duration": duration, "search_term": topic}],
+            "captions": [{"text": topic, "start_time": 0, "end_time": duration}]
+        }
 
     # Try to parse JSON from the response
     try:
@@ -66,13 +79,16 @@ def generate_script(topic: str, duration: int) -> dict:
             text = text[3:]
         if text.endswith("```"):
             text = text[:-3]
-        return json.loads(text)
+        data = json.loads(text)
+        # Ensure "full_text" is not empty
+        if not data.get("full_text"):
+            data["full_text"] = f"{topic}. This is an automated video about {topic}."
+        return data
     except:
-        # Fallback if JSON parsing fails
         return {
-            "full_text": raw_text,
-            "scenes": [{"text": raw_text, "duration": duration, "search_term": topic}],
-            "captions": [{"text": raw_text[:30], "start_time": 0, "end_time": duration}]
+            "full_text": raw_text if raw_text else f"{topic}. This is an automated video about {topic}.",
+            "scenes": [{"text": raw_text if raw_text else topic, "duration": duration, "search_term": topic}],
+            "captions": [{"text": raw_text[:30] if raw_text else topic, "start_time": 0, "end_time": duration}]
         }
 
 # ------------------ VOICEOVER (gTTS, free) ------------------
