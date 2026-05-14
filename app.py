@@ -30,7 +30,7 @@ CAPTION_STYLES = {
 }
 TARGET_SIZE = (1080, 1920)
 
-# ------------------ SCRIPT GENERATION (Free Pollinations API) ------------------
+# ------------------ SCRIPT GENERATION (Free Pollinations API, with fallback) ------------------
 def generate_script(topic: str, duration: int) -> dict:
     word_count = duration * 2
     prompt = f"""
@@ -53,7 +53,7 @@ def generate_script(topic: str, duration: int) -> dict:
     )
 
     if response.status_code != 200:
-        # If the API fails, use a hardcoded fallback script
+        # API error fallback
         return {
             "full_text": f"{topic}. This is an automated video about {topic}. Stay tuned for more.",
             "scenes": [{"text": topic, "duration": duration, "search_term": topic}],
@@ -62,8 +62,8 @@ def generate_script(topic: str, duration: int) -> dict:
 
     raw_text = response.json().get("content", "")
 
-    # If the response is empty, use fallback
     if not raw_text.strip():
+        # Empty response fallback
         return {
             "full_text": f"{topic}. This is an automated video about {topic}. Stay tuned for more.",
             "scenes": [{"text": topic, "duration": duration, "search_term": topic}],
@@ -80,7 +80,7 @@ def generate_script(topic: str, duration: int) -> dict:
         if text.endswith("```"):
             text = text[:-3]
         data = json.loads(text)
-        # Ensure "full_text" is not empty
+        # Ensure full_text is not empty
         if not data.get("full_text"):
             data["full_text"] = f"{topic}. This is an automated video about {topic}."
         return data
@@ -148,7 +148,7 @@ def generate_ai_image(scenes) -> list:
             paths.append(None)
     return paths
 
-# ------------------ VIDEO ASSEMBLY ------------------
+# ------------------ VIDEO ASSEMBLY (MoviePy v2 compatible) ------------------
 def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_style="bold yellow"):
     # Prepare visual clips
     visual_clips = []
@@ -156,7 +156,7 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
         if path and os.path.exists(path):
             try:
                 if path.lower().endswith(('.jpg','.jpeg','.png')):
-                    clip = ImageClip(path).with_duration(3)   # FIXED
+                    clip = ImageClip(path).with_duration(3)
                 else:
                     clip = VideoFileClip(path).without_audio()
                 clip = clip.with_effects([Resize(height=TARGET_SIZE[1])])
@@ -167,17 +167,17 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
             except:
                 continue
     if not visual_clips:
-        visual_clips = [ColorClip(size=TARGET_SIZE, color=(0,0,0), duration=5)]  # FIXED
+        visual_clips = [ColorClip(size=TARGET_SIZE, color=(0,0,0), duration=5)]
 
     voice_audio = AudioFileClip(audio_path)
     video_duration = voice_audio.duration
 
     # Distribute visual clips to cover duration
     if len(visual_clips) == 1:
-        visual_timeline = [visual_clips[0].with_duration(video_duration)]  # FIXED
+        visual_timeline = [visual_clips[0].with_duration(video_duration)]
     else:
         seg_dur = video_duration / len(visual_clips)
-        visual_timeline = [clip.with_duration(seg_dur) for clip in visual_clips]  # FIXED
+        visual_timeline = [clip.with_duration(seg_dur) for clip in visual_clips]
 
     final_visual = concatenate_videoclips(visual_timeline, method="compose")
 
@@ -194,9 +194,9 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
             end = video_duration
         if end - start <= 0:
             continue
-       txt_clip = (TextClip(
+        txt_clip = (TextClip(
             txt,
-            font=None,                     # use default system font
+            font=None,
             font_size=style["font_size"],
             color=style["color"],
             stroke_color=style["stroke_color"],
@@ -205,7 +205,7 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
         )
         .set_position(("center", "center"))
         .set_start(start)
-        .set_duration(end - start)) # TextClip still uses .set_duration in v2? Actually it's fine.
+        .set_duration(end - start))
         caption_clips.append(txt_clip)
 
     composite = CompositeVideoClip([final_visual] + caption_clips, size=TARGET_SIZE)
@@ -242,11 +242,10 @@ with st.sidebar:
     bg_music = st.selectbox("Background Music", ["lofi", "epic", "suspense", "none"], index=3)
     use_ai_images = st.checkbox("Use AI images instead of stock videos", False)
     caption_style = st.selectbox("Caption Style", ["bold yellow", "clean white", "neon green"], index=0)
-    voice_speed = st.selectbox("Voiceover Speed", ["normal", "slow"], index=0)  # gTTS supports normal/slow
+    voice_speed = st.selectbox("Voiceover Speed", ["normal", "slow"], index=0)
 
     st.markdown("---")
     st.markdown("### 🔑 API Status")
-    # Pexels key is hardcoded for now
     if PEXELS_API_KEY:
         st.success("Pexels key set")
     else:
@@ -286,8 +285,3 @@ if st.button("🎥 Generate Video Now", type="primary"):
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
             st.exception(e)
-            
-            
-            
-            
-            
