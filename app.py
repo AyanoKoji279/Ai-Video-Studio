@@ -194,9 +194,9 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
             end = video_duration
         if end - start <= 0:
             continue
+        # Create TextClip without the 'font' argument
         txt_clip = (TextClip(
             txt,
-            font=None,
             font_size=style["font_size"],
             color=style["color"],
             stroke_color=style["stroke_color"],
@@ -285,4 +285,3 @@ if st.button("🎥 Generate Video Now", type="primary"):
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
             st.exception(e)
-            
