@@ -4,12 +4,13 @@ import time
 import requests
 import json
 from gtts import gTTS
+from PIL import Image, ImageDraw, ImageFont
+import numpy as np
 from moviepy import (
     VideoFileClip, ImageClip, AudioFileClip, CompositeVideoClip,
-    concatenate_videoclips, TextClip, ColorClip, CompositeAudioClip
+    concatenate_videoclips, ColorClip, CompositeAudioClip
 )
 from moviepy.video.fx import Resize
-import numpy as np
 
 # ------------------ HARDCODED PEXELS KEY (replace later with Secrets) ------------------
 PEXELS_API_KEY = "j3dwRDel85FRc3fduxWS68SapKOpRoZYIx7Oa07QmtDMZS3U0A7k32uO"
@@ -139,7 +140,33 @@ def generate_ai_image(scenes) -> list:
             paths.append(None)
     return paths
 
-# ------------------ VIDEO ASSEMBLY (MoviePy v2, fixed font) ------------------
+# ------------------ VIDEO ASSEMBLY (PIL captions – no font errors) ------------------
+def _create_caption_image(text, style):
+    """Create a PIL image of the caption text with the given style."""
+    font_size = style["font_size"]
+    # Use PIL's default bitmap font (always available)
+    font = ImageFont.load_default()
+    # Calculate text size using textbbox
+    dummy_img = Image.new("RGBA", (1,1), (0,0,0,0))
+    draw = ImageDraw.Draw(dummy_img)
+    bbox = draw.textbbox((0,0), text, font=font)
+    w = bbox[2] - bbox[0] + 20
+    h = bbox[3] - bbox[1] + 20
+    # Create transparent image
+    img = Image.new("RGBA", (int(w), int(h)), (0,0,0,0))
+    draw = ImageDraw.Draw(img)
+    # Draw stroke (outline)
+    stroke_width = style.get("stroke_width", 2)
+    stroke_color = style.get("stroke_color", "black")
+    x = 10
+    y = 10
+    for dx in range(-stroke_width, stroke_width+1):
+        for dy in range(-stroke_width, stroke_width+1):
+            draw.text((x+dx, y+dy), text, font=font, fill=stroke_color)
+    # Draw main text
+    draw.text((x, y), text, font=font, fill=style["color"])
+    return np.array(img)
+
 def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_style="bold yellow"):
     visual_clips = []
     for path in visual_paths:
@@ -183,18 +210,10 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
         if end - start <= 0:
             continue
 
-        # Use keyword arguments and a real system font
-        txt_clip = TextClip(
-            text=txt,
-            font="DejaVu-Sans",
-            font_size=style["font_size"],
-            color=style["color"],
-            stroke_color=style["stroke_color"],
-            stroke_width=style["stroke_width"],
-            size=(int(TARGET_SIZE[0]*0.9), None)
-        ).set_position(("center", "center")).set_start(start).set_duration(end - start)
-
-        caption_clips.append(txt_clip)
+        # Create caption image using PIL
+        caption_array = _create_caption_image(txt, style)
+        caption_img_clip = ImageClip(caption_array).set_start(start).set_duration(end - start).set_position(("center", "center"))
+        caption_clips.append(caption_img_clip)
 
     composite = CompositeVideoClip([final_visual] + caption_clips, size=TARGET_SIZE)
     composite = composite.set_audio(voice_audio)
@@ -271,4 +290,3 @@ if st.button("🎥 Generate Video Now", type="primary"):
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
             st.exception(e)
-            
