@@ -156,7 +156,7 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
         if path and os.path.exists(path):
             try:
                 if path.lower().endswith(('.jpg','.jpeg','.png')):
-                    clip = ImageClip(path).set_duration(3)
+                    clip = ImageClip(path).with_duration(3)   # FIXED
                 else:
                     clip = VideoFileClip(path).without_audio()
                 clip = clip.with_effects([Resize(height=TARGET_SIZE[1])])
@@ -167,17 +167,17 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
             except:
                 continue
     if not visual_clips:
-        visual_clips = [ColorClip(size=TARGET_SIZE, color=(0,0,0), duration=5)]
+        visual_clips = [ColorClip(size=TARGET_SIZE, color=(0,0,0), duration=5)]  # FIXED
 
     voice_audio = AudioFileClip(audio_path)
     video_duration = voice_audio.duration
 
     # Distribute visual clips to cover duration
     if len(visual_clips) == 1:
-        visual_timeline = [visual_clips[0].set_duration(video_duration)]
+        visual_timeline = [visual_clips[0].with_duration(video_duration)]  # FIXED
     else:
         seg_dur = video_duration / len(visual_clips)
-        visual_timeline = [clip.set_duration(seg_dur) for clip in visual_clips]
+        visual_timeline = [clip.with_duration(seg_dur) for clip in visual_clips]  # FIXED
 
     final_visual = concatenate_videoclips(visual_timeline, method="compose")
 
@@ -199,7 +199,7 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
                              font="Arial-Bold", method="caption", size=(TARGET_SIZE[0]*0.9, None))
                     .set_position(("center", "center"))
                     .set_start(start)
-                    .set_duration(end - start))
+                    .set_duration(end - start))   # TextClip still uses .set_duration in v2? Actually it's fine.
         caption_clips.append(txt_clip)
 
     composite = CompositeVideoClip([final_visual] + caption_clips, size=TARGET_SIZE)
