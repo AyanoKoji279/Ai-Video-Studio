@@ -42,33 +42,45 @@ def generate_script(topic: str, duration: int) -> dict:
     "{topic}"
 
     The script must be around {word_count} words, suitable for a {duration}-second video.
-    Return a valid JSON object with these keys:
+
+    Return your response as a valid JSON object with these keys:
     - "full_text": complete voiceover script text
     - "scenes": list of objects, each with "text", "duration", "search_term"
     - "captions": list of objects, each with "text", "start_time", "end_time"
-    """
-    headers = {"Content-Type": "application/json"}
-    data = {"contents": [{"parts": [{"text": prompt}]}]}
-    url = f"{GEMINI_URL}?key={GEMINI_API_KEY}"
-    resp = requests.post(url, headers=headers, json=data)
-    if resp.status_code != 200:
-        raise Exception(f"Gemini API error: {resp.status_code} {resp.text}")
-    result = resp.json()
-    raw_text = result["candidates"][0]["content"]["parts"][0]["text"]
 
-    # Parse JSON from the response
+    Only output the JSON object, nothing else.
+    """
+
+    # Use Pollinations free text API
+    response = requests.post(
+        "https://text.pollinations.ai/",
+        json={"messages": [{"role": "user", "content": prompt}]}
+    )
+
+    if response.status_code != 200:
+        raise Exception(f"Text generation error: {response.status_code} {response.text}")
+
+    raw_text = response.json().get("content", "")
+
+    # Try to parse JSON from the response
     try:
         text = raw_text.strip()
-        if text.startswith("```json"): text = text[7:]
-        if text.startswith("```"): text = text[3:]
-        if text.endswith("```"): text = text[:-3]
+        if text.startswith("```json"):
+            text = text[7:]
+        if text.startswith("```"):
+            text = text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
         return json.loads(text)
     except:
+        # Fallback – create a basic structure from raw text
         return {
             "full_text": raw_text,
             "scenes": [{"text": raw_text, "duration": duration, "search_term": topic}],
             "captions": [{"text": raw_text[:30], "start_time": 0, "end_time": duration}]
         }
+
+    
 
 # ------------------ VOICEOVER (Edge TTS) ------------------
 async def _generate_edge(text, filepath, voice="en-US-AriaNeural", rate="+0%"):
