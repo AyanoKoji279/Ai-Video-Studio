@@ -140,26 +140,21 @@ def generate_ai_image(scenes) -> list:
             paths.append(None)
     return paths
 
-# ------------------ VIDEO ASSEMBLY (PIL captions – no font errors) ------------------
+# ------------------ CAPTION HELPER (PIL rendering) ------------------
 def _create_caption_image(text, style):
-    """Create a PIL image of the caption text with the given style."""
-    font_size = style["font_size"]
-    # Use PIL's default bitmap font (always available)
     font = ImageFont.load_default()
-    # Calculate text size using textbbox
     dummy_img = Image.new("RGBA", (1,1), (0,0,0,0))
     draw = ImageDraw.Draw(dummy_img)
     bbox = draw.textbbox((0,0), text, font=font)
     w = bbox[2] - bbox[0] + 20
     h = bbox[3] - bbox[1] + 20
-    # Create transparent image
     img = Image.new("RGBA", (int(w), int(h)), (0,0,0,0))
     draw = ImageDraw.Draw(img)
-    # Draw stroke (outline)
     stroke_width = style.get("stroke_width", 2)
     stroke_color = style.get("stroke_color", "black")
     x = 10
     y = 10
+    # Draw outline
     for dx in range(-stroke_width, stroke_width+1):
         for dy in range(-stroke_width, stroke_width+1):
             draw.text((x+dx, y+dy), text, font=font, fill=stroke_color)
@@ -167,6 +162,7 @@ def _create_caption_image(text, style):
     draw.text((x, y), text, font=font, fill=style["color"])
     return np.array(img)
 
+# ------------------ VIDEO ASSEMBLY (MoviePy v2 compliant) ------------------
 def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_style="bold yellow"):
     visual_clips = []
     for path in visual_paths:
@@ -179,7 +175,8 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
                 clip = clip.with_effects([Resize(height=TARGET_SIZE[1])])
                 if clip.w < TARGET_SIZE[0]:
                     clip = clip.with_effects([Resize(width=TARGET_SIZE[0])])
-                clip = clip.set_position("center").crop(x_center=clip.w/2, y_center=clip.h/2, width=TARGET_SIZE[0], height=TARGET_SIZE[1])
+                # Use with_position instead of set_position
+                clip = clip.with_position("center").crop(x_center=clip.w/2, y_center=clip.h/2, width=TARGET_SIZE[0], height=TARGET_SIZE[1])
                 visual_clips.append(clip)
             except:
                 continue
@@ -210,13 +207,16 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
         if end - start <= 0:
             continue
 
-        # Create caption image using PIL
         caption_array = _create_caption_image(txt, style)
-        caption_img_clip = ImageClip(caption_array).set_start(start).set_duration(end - start).set_position(("center", "center"))
+        # Use with_start, with_duration, with_position
+        caption_img_clip = (ImageClip(caption_array)
+                            .with_start(start)
+                            .with_duration(end - start)
+                            .with_position(("center", "center")))
         caption_clips.append(caption_img_clip)
 
     composite = CompositeVideoClip([final_visual] + caption_clips, size=TARGET_SIZE)
-    composite = composite.set_audio(voice_audio)
+    composite = composite.with_audio(voice_audio)   # with_audio instead of set_audio
 
     if music_file and os.path.exists(music_file):
         music_audio = AudioFileClip(music_file).volumex(0.15)
@@ -225,7 +225,7 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
         else:
             music_audio = music_audio.subclip(0, video_duration)
         final_audio = CompositeAudioClip([voice_audio, music_audio])
-        composite = composite.set_audio(final_audio)
+        composite = composite.with_audio(final_audio)
 
     final_path = os.path.join(OUTPUT_FINAL, "final_video.mp4")
     composite.write_videofile(final_path, fps=24, codec="libx264", audio_codec="aac", threads=2, preset="ultrafast")
@@ -290,4 +290,3 @@ if st.button("🎥 Generate Video Now", type="primary"):
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
             st.exception(e)
-            
