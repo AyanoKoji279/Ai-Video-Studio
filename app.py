@@ -16,7 +16,7 @@ from moviepy.video.fx import Resize
 PEXELS_API_KEY = "j3dwRDel85FRc3fduxWS68SapKOpRoZYIx7Oa07QmtDMZS3U0A7k32uO"
 PEXELS_URL = "https://api.pexels.com/videos/search"
 
-# ------------------ HELPERS ------------------
+# ------------------ HELPER DIRS ------------------
 OUTPUT_AUDIO = "outputs/audio"
 OUTPUT_CLIPS = "outputs/clips"
 OUTPUT_IMAGES = "outputs/images"
@@ -31,57 +31,81 @@ CAPTION_STYLES = {
 }
 TARGET_SIZE = (1080, 1920)
 
-# ------------------ SCRIPT GENERATION (Free Pollinations API, with fallback) ------------------
+# ------------------ SCRIPT GENERATION (Pollinations with better fallback) ------------------
 def generate_script(topic: str, duration: int) -> dict:
-    word_count = duration * 2
+    # Increase word count for more substance
+    word_count = max(duration * 3, 30)  # at least 30 words
     prompt = f"""
-    You are a viral content scriptwriter. Write a voiceover script about:
+    You are a viral content scriptwriter for YouTube Shorts and TikTok.
+    Write a short, punchy voiceover script about the topic:
     "{topic}"
 
     The script must be around {word_count} words, suitable for a {duration}-second video.
-
-    Return your response as a valid JSON object with these keys:
-    - "full_text": complete voiceover script text
-    - "scenes": list of objects, each with "text", "duration", "search_term"
-    - "captions": list of objects, each with "text", "start_time", "end_time"
-
-    Only output the JSON object, nothing else.
+    Use captivating language. Include a hook, main facts, and a call-to-action (like, subscribe).
+    
+    Return ONLY a valid JSON object with these keys, no extra text:
+    {{
+      "full_text": "the complete voiceover script",
+      "scenes": [
+        {{"text": "part of the script for this scene", "duration": time_in_seconds, "search_term": "short Pexels search term for stock footage"}}
+      ],
+      "captions": [
+        {{"text": "caption phrase (exactly as on screen)", "start_time": start_second, "end_time": end_second}}
+      ]
+    }}
     """
 
-    response = requests.post(
-        "https://text.pollinations.ai/",
-        json={"messages": [{"role": "user", "content": prompt}]}
-    )
-
-    if response.status_code != 200:
+    try:
+        response = requests.post(
+            "https://text.pollinations.ai/",
+            json={"messages": [{"role": "user", "content": prompt}]},
+            timeout=15
+        )
+        if response.status_code != 200:
+            raise Exception(f"API error {response.status_code}")
+        raw_text = response.json().get("content", "")
+        if not raw_text.strip():
+            raise Exception("Empty response")
+    except Exception as e:
+        # Improved fallback: at least 3 meaningful sentences
+        fallback_text = (
+            f"Welcome to this quick video about {topic}. "
+            f"{topic} is fascinating and often misunderstood. "
+            f"Here are some key facts that will blow your mind. "
+            f"Stay tuned for more amazing content. Like and subscribe!"
+        )
         return {
-            "full_text": f"{topic}. This is an automated video about {topic}. Stay tuned for more.",
-            "scenes": [{"text": topic, "duration": duration, "search_term": topic}],
-            "captions": [{"text": topic, "start_time": 0, "end_time": duration}]
+            "full_text": fallback_text,
+            "scenes": [
+                {"text": f"Introduction to {topic}", "duration": 5, "search_term": topic},
+                {"text": "Key facts about {topic}", "duration": 5, "search_term": topic},
+                {"text": "Conclusion and call to action", "duration": 5, "search_term": "viral"}
+            ],
+            "captions": [
+                {"text": f"{topic}", "start_time": 0, "end_time": 2},
+                {"text": "Fascinating Facts", "start_time": 2, "end_time": 5},
+                {"text": "Subscribe for more!", "start_time": 5, "end_time": 8},
+            ]
         }
 
-    raw_text = response.json().get("content", "")
-    if not raw_text.strip():
-        return {
-            "full_text": f"{topic}. This is an automated video about {topic}. Stay tuned for more.",
-            "scenes": [{"text": topic, "duration": duration, "search_term": topic}],
-            "captions": [{"text": topic, "start_time": 0, "end_time": duration}]
-        }
-
+    # Parse JSON from response
     try:
         text = raw_text.strip()
         if text.startswith("```json"): text = text[7:]
         if text.startswith("```"): text = text[3:]
         if text.endswith("```"): text = text[:-3]
         data = json.loads(text)
+        # Ensure required keys
         if not data.get("full_text"):
-            data["full_text"] = f"{topic}. This is an automated video about {topic}."
+            raise Exception("Missing full_text")
         return data
     except:
+        # Use raw text as full script, and create basic scenes/captions
+        clean_text = raw_text.strip()[:500]  # avoid overly long
         return {
-            "full_text": raw_text if raw_text else f"{topic}. This is an automated video about {topic}.",
-            "scenes": [{"text": raw_text if raw_text else topic, "duration": duration, "search_term": topic}],
-            "captions": [{"text": raw_text[:30] if raw_text else topic, "start_time": 0, "end_time": duration}]
+            "full_text": clean_text,
+            "scenes": [{"text": clean_text, "duration": duration, "search_term": topic}],
+            "captions": [{"text": clean_text[:30], "start_time": 0, "end_time": duration}]
         }
 
 # ------------------ VOICEOVER (gTTS, free) ------------------
@@ -91,7 +115,7 @@ def generate_voiceover(text: str, speed: str = "normal", filename: str = "voiceo
     tts.save(output_path)
     return output_path
 
-# ------------------ STOCK VIDEOS (Pexels API) ------------------
+# ------------------ STOCK VIDEOS (Pexels) ------------------
 def fetch_pexels_videos(search_terms, max_clips=5) -> list:
     headers = {"Authorization": PEXELS_API_KEY}
     clips = []
@@ -120,7 +144,7 @@ def fetch_pexels_videos(search_terms, max_clips=5) -> list:
                 clips.append(fpath)
     return clips
 
-# ------------------ AI IMAGE GENERATOR (Pollinations, free) ------------------
+# ------------------ AI IMAGE GENERATOR (Pollinations) ------------------
 def generate_ai_image(scenes) -> list:
     paths = []
     for i, scene in enumerate(scenes):
@@ -140,29 +164,39 @@ def generate_ai_image(scenes) -> list:
             paths.append(None)
     return paths
 
-# ------------------ CAPTION HELPER (PIL rendering) ------------------
+# ------------------ CAPTION RENDERING (PIL with DejaVu font) ------------------
 def _create_caption_image(text, style):
-    font = ImageFont.load_default()
+    # Try to use DejaVu Sans (scalable), fallback to default bitmap if not found
+    font_size = style["font_size"]
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size)
+    except:
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+        except:
+            font = ImageFont.load_default()  # fallback, but tiny
+    # Measure text
     dummy_img = Image.new("RGBA", (1,1), (0,0,0,0))
     draw = ImageDraw.Draw(dummy_img)
     bbox = draw.textbbox((0,0), text, font=font)
     w = bbox[2] - bbox[0] + 20
     h = bbox[3] - bbox[1] + 20
-    img = Image.new("RGBA", (int(w), int(h)), (0,0,0,0))
+    # Create transparent image
+    img = Image.new("RGBA", (max(int(w), 100), max(int(h), 100)), (0,0,0,0))
     draw = ImageDraw.Draw(img)
+    # Draw outline (stroke)
     stroke_width = style.get("stroke_width", 2)
     stroke_color = style.get("stroke_color", "black")
     x = 10
     y = 10
-    # Draw outline
     for dx in range(-stroke_width, stroke_width+1):
         for dy in range(-stroke_width, stroke_width+1):
             draw.text((x+dx, y+dy), text, font=font, fill=stroke_color)
-    # Draw main text
+    # Main text
     draw.text((x, y), text, font=font, fill=style["color"])
     return np.array(img)
 
-# ------------------ VIDEO ASSEMBLY (MoviePy v2 compliant) ------------------
+# ------------------ VIDEO ASSEMBLY (MoviePy v2) ------------------
 def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_style="bold yellow"):
     visual_clips = []
     for path in visual_paths:
@@ -175,13 +209,12 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
                 clip = clip.with_effects([Resize(height=TARGET_SIZE[1])])
                 if clip.w < TARGET_SIZE[0]:
                     clip = clip.with_effects([Resize(width=TARGET_SIZE[0])])
-                # Use with_position instead of set_position
                 clip = clip.with_position("center").crop(x_center=clip.w/2, y_center=clip.h/2, width=TARGET_SIZE[0], height=TARGET_SIZE[1])
                 visual_clips.append(clip)
             except:
                 continue
     if not visual_clips:
-        visual_clips = [ColorClip(size=TARGET_SIZE, color=(0,0,0), duration=5)]
+        visual_clips = [ColorClip(size=TARGET_SIZE, color=(0,0,0), duration=5)]  # fallback
 
     voice_audio = AudioFileClip(audio_path)
     video_duration = voice_audio.duration
@@ -208,7 +241,6 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
             continue
 
         caption_array = _create_caption_image(txt, style)
-        # Use with_start, with_duration, with_position
         caption_img_clip = (ImageClip(caption_array)
                             .with_start(start)
                             .with_duration(end - start)
@@ -216,7 +248,7 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
         caption_clips.append(caption_img_clip)
 
     composite = CompositeVideoClip([final_visual] + caption_clips, size=TARGET_SIZE)
-    composite = composite.with_audio(voice_audio)   # with_audio instead of set_audio
+    composite = composite.with_audio(voice_audio)
 
     if music_file and os.path.exists(music_file):
         music_audio = AudioFileClip(music_file).volumex(0.15)
@@ -271,10 +303,13 @@ if st.button("🎥 Generate Video Now", type="primary"):
 
             progress_bar.progress(60, text="Fetching visuals...")
             if use_ai_images:
-                image_paths = generate_ai_image(script_data["scenes"])
-                video_clips = image_paths
+                video_clips = generate_ai_image(script_data["scenes"])
             else:
                 video_clips = fetch_pexels_videos(script_data["scenes"])
+                # Fallback to AI images if Pexels returned nothing
+                if not video_clips:
+                    st.warning("No stock videos found, falling back to AI images.")
+                    video_clips = generate_ai_image(script_data["scenes"])
 
             progress_bar.progress(80, text="Assembling video with music...")
             music_file = f"assets/music/{bg_music}.mp3" if bg_music != "none" else None
@@ -290,4 +325,3 @@ if st.button("🎥 Generate Video Now", type="primary"):
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
             st.exception(e)
-            
