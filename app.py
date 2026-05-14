@@ -14,7 +14,7 @@ import edge_tts
 import numpy as np
 
 # ------------------ API KEYS & URLs ------------------
-PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
+PEXELS_API_KEY = os.getenv("AgHEaR9dq3fsg71hRFkq8gr8SPHW3HpebnUXsCfKVtvr7GA1SI0azZYf")
 PEXELS_URL = "https://api.pexels.com/videos/search"
 
 # ------------------ HELPERS ------------------
