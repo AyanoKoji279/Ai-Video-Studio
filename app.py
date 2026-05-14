@@ -53,7 +53,6 @@ def generate_script(topic: str, duration: int) -> dict:
     )
 
     if response.status_code != 200:
-        # API error fallback
         return {
             "full_text": f"{topic}. This is an automated video about {topic}. Stay tuned for more.",
             "scenes": [{"text": topic, "duration": duration, "search_term": topic}],
@@ -61,26 +60,19 @@ def generate_script(topic: str, duration: int) -> dict:
         }
 
     raw_text = response.json().get("content", "")
-
     if not raw_text.strip():
-        # Empty response fallback
         return {
             "full_text": f"{topic}. This is an automated video about {topic}. Stay tuned for more.",
             "scenes": [{"text": topic, "duration": duration, "search_term": topic}],
             "captions": [{"text": topic, "start_time": 0, "end_time": duration}]
         }
 
-    # Try to parse JSON from the response
     try:
         text = raw_text.strip()
-        if text.startswith("```json"):
-            text = text[7:]
-        if text.startswith("```"):
-            text = text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
+        if text.startswith("```json"): text = text[7:]
+        if text.startswith("```"): text = text[3:]
+        if text.endswith("```"): text = text[:-3]
         data = json.loads(text)
-        # Ensure full_text is not empty
         if not data.get("full_text"):
             data["full_text"] = f"{topic}. This is an automated video about {topic}."
         return data
@@ -114,7 +106,6 @@ def fetch_pexels_videos(search_terms, max_clips=5) -> list:
             videos = data.get("videos", [])
             if videos:
                 video_files = videos[0].get("video_files", [])
-                # Prefer portrait HD
                 target = next((vf for vf in video_files if vf.get("width")==1080 and vf.get("height")==1920), video_files[0])
                 video_url = target["link"]
                 ext = video_url.split(".")[-1].split("?")[0]
@@ -148,9 +139,8 @@ def generate_ai_image(scenes) -> list:
             paths.append(None)
     return paths
 
-# ------------------ VIDEO ASSEMBLY (MoviePy v2 compatible) ------------------
+# ------------------ VIDEO ASSEMBLY (MoviePy v2, fixed font) ------------------
 def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_style="bold yellow"):
-    # Prepare visual clips
     visual_clips = []
     for path in visual_paths:
         if path and os.path.exists(path):
@@ -172,7 +162,6 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
     voice_audio = AudioFileClip(audio_path)
     video_duration = voice_audio.duration
 
-    # Distribute visual clips to cover duration
     if len(visual_clips) == 1:
         visual_timeline = [visual_clips[0].with_duration(video_duration)]
     else:
@@ -181,7 +170,6 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
 
     final_visual = concatenate_videoclips(visual_timeline, method="compose")
 
-    # Add captions
     style = CAPTION_STYLES.get(caption_style, CAPTION_STYLES["bold yellow"])
     caption_clips = []
     for cap in captions:
@@ -194,24 +182,23 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
             end = video_duration
         if end - start <= 0:
             continue
-        # Create TextClip without the 'font' argument
-        txt_clip = (TextClip(
-            txt,
+
+        # Use keyword arguments and a real system font
+        txt_clip = TextClip(
+            text=txt,
+            font="DejaVu-Sans",
             font_size=style["font_size"],
             color=style["color"],
             stroke_color=style["stroke_color"],
             stroke_width=style["stroke_width"],
             size=(int(TARGET_SIZE[0]*0.9), None)
-        )
-        .set_position(("center", "center"))
-        .set_start(start)
-        .set_duration(end - start))
+        ).set_position(("center", "center")).set_start(start).set_duration(end - start)
+
         caption_clips.append(txt_clip)
 
     composite = CompositeVideoClip([final_visual] + caption_clips, size=TARGET_SIZE)
     composite = composite.set_audio(voice_audio)
 
-    # Mix background music if provided
     if music_file and os.path.exists(music_file):
         music_audio = AudioFileClip(music_file).volumex(0.15)
         if music_audio.duration < video_duration:
@@ -224,7 +211,6 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
     final_path = os.path.join(OUTPUT_FINAL, "final_video.mp4")
     composite.write_videofile(final_path, fps=24, codec="libx264", audio_codec="aac", threads=2, preset="ultrafast")
 
-    # Clean up
     voice_audio.close()
     for c in visual_clips:
         c.close()
@@ -285,4 +271,3 @@ if st.button("🎥 Generate Video Now", type="primary"):
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
             st.exception(e)
-            
