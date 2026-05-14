@@ -195,11 +195,11 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
         if end - start <= 0:
             continue
         txt_clip = (TextClip(txt, font_size=style["font_size"], color=style["color"],
-                             stroke_color=style["stroke_color"], stroke_width=style["stroke_width"],
-                             font="Arial-Bold", method="caption", size=(TARGET_SIZE[0]*0.9, None))
-                    .set_position(("center", "center"))
-                    .set_start(start)
-                    .set_duration(end - start))   # TextClip still uses .set_duration in v2? Actually it's fine.
+                     stroke_color=style["stroke_color"], stroke_width=style["stroke_width"],
+                     method="caption", size=(TARGET_SIZE[0]*0.9, None))
+            .set_position(("center", "center"))
+            .set_start(start)
+            .set_duration(end - start)) # TextClip still uses .set_duration in v2? Actually it's fine.
         caption_clips.append(txt_clip)
 
     composite = CompositeVideoClip([final_visual] + caption_clips, size=TARGET_SIZE)
