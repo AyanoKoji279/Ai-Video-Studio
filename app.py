@@ -14,10 +14,8 @@ import edge_tts
 import numpy as np
 
 # ------------------ API KEYS & URLs ------------------
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 PEXELS_URL = "https://api.pexels.com/videos/search"
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview:generateContent"
 
 # ------------------ HELPERS ------------------
 OUTPUT_AUDIO = "outputs/audio"
@@ -34,9 +32,9 @@ CAPTION_STYLES = {
 }
 TARGET_SIZE = (1080, 1920)
 
-# ------------------ SCRIPT GENERATION ------------------
+# ------------------ SCRIPT GENERATION (Free Pollinations API, no key) ------------------
 def generate_script(topic: str, duration: int) -> dict:
-    word_count = duration * 2
+    word_count = duration * 2  # rough estimate
     prompt = f"""
     You are a viral content scriptwriter. Write a voiceover script about:
     "{topic}"
@@ -51,7 +49,6 @@ def generate_script(topic: str, duration: int) -> dict:
     Only output the JSON object, nothing else.
     """
 
-    # Use Pollinations free text API
     response = requests.post(
         "https://text.pollinations.ai/",
         json={"messages": [{"role": "user", "content": prompt}]}
@@ -73,16 +70,14 @@ def generate_script(topic: str, duration: int) -> dict:
             text = text[:-3]
         return json.loads(text)
     except:
-        # Fallback – create a basic structure from raw text
+        # Fallback if JSON parsing fails
         return {
             "full_text": raw_text,
             "scenes": [{"text": raw_text, "duration": duration, "search_term": topic}],
             "captions": [{"text": raw_text[:30], "start_time": 0, "end_time": duration}]
         }
 
-    
-
-# ------------------ VOICEOVER (Edge TTS) ------------------
+# ------------------ VOICEOVER (Edge TTS, free) ------------------
 async def _generate_edge(text, filepath, voice="en-US-AriaNeural", rate="+0%"):
     comm = edge_tts.Communicate(text, voice, rate=rate)
     await comm.save(filepath)
@@ -94,7 +89,7 @@ def generate_voiceover(text: str, speed: str = "normal", filename: str = "voiceo
     asyncio.run(_generate_edge(text, output_path, rate=rate))
     return output_path
 
-# ------------------ STOCK VIDEOS (Pexels) ------------------
+# ------------------ STOCK VIDEOS (Pexels API) ------------------
 def fetch_pexels_videos(search_terms, max_clips=5) -> list:
     headers = {"Authorization": PEXELS_API_KEY}
     clips = []
@@ -110,7 +105,7 @@ def fetch_pexels_videos(search_terms, max_clips=5) -> list:
             videos = data.get("videos", [])
             if videos:
                 video_files = videos[0].get("video_files", [])
-                # prefer portrait HD
+                # Prefer portrait HD
                 target = next((vf for vf in video_files if vf.get("width")==1080 and vf.get("height")==1920), video_files[0])
                 video_url = target["link"]
                 ext = video_url.split(".")[-1].split("?")[0]
@@ -124,7 +119,7 @@ def fetch_pexels_videos(search_terms, max_clips=5) -> list:
                 clips.append(fpath)
     return clips
 
-# ------------------ AI IMAGE GENERATOR (Pollinations) ------------------
+# ------------------ AI IMAGE GENERATOR (Pollinations, free) ------------------
 def generate_ai_image(scenes) -> list:
     paths = []
     for i, scene in enumerate(scenes):
@@ -156,7 +151,8 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
                 else:
                     clip = VideoFileClip(path).without_audio()
                 clip = clip.with_effects([Resize(height=TARGET_SIZE[1])])
-                if clip.w < TARGET_SIZE[0]: clip = clip.with_effects([Resize(width=TARGET_SIZE[0])])
+                if clip.w < TARGET_SIZE[0]:
+                    clip = clip.with_effects([Resize(width=TARGET_SIZE[0])])
                 clip = clip.set_position("center").crop(x_center=clip.w/2, y_center=clip.h/2, width=TARGET_SIZE[0], height=TARGET_SIZE[1])
                 visual_clips.append(clip)
             except:
@@ -183,9 +179,12 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
         txt = cap.get("text", "")
         start = cap.get("start_time", 0)
         end = cap.get("end_time", start + 2)
-        if start >= video_duration: continue
-        if end > video_duration: end = video_duration
-        if end - start <= 0: continue
+        if start >= video_duration:
+            continue
+        if end > video_duration:
+            end = video_duration
+        if end - start <= 0:
+            continue
         txt_clip = (TextClip(txt, font_size=style["font_size"], color=style["color"],
                              stroke_color=style["stroke_color"], stroke_width=style["stroke_width"],
                              font="Arial-Bold", method="caption", size=(TARGET_SIZE[0]*0.9, None))
@@ -212,7 +211,8 @@ def assemble_video(visual_paths, audio_path, captions, music_file=None, caption_
 
     # Clean up
     voice_audio.close()
-    for c in visual_clips: c.close()
+    for c in visual_clips:
+        c.close()
     return final_path
 
 # ------------------ STREAMLIT UI ------------------
@@ -231,18 +231,15 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("### 🔑 API Status")
-    if GEMINI_API_KEY:
-        st.success("Gemini key set")
-    else:
-        st.error("Gemini key missing")
+    # Only Pexels key is needed now
     if PEXELS_API_KEY:
         st.success("Pexels key set")
     else:
         st.error("Pexels key missing")
 
 if st.button("🎥 Generate Video Now", type="primary"):
-    if not GEMINI_API_KEY or not PEXELS_API_KEY:
-        st.error("Please set GEMINI_API_KEY and PEXELS_API_KEY in environment variables (or Streamlit secrets).")
+    if not PEXELS_API_KEY:
+        st.error("Please set PEXELS_API_KEY in environment variables (or Streamlit secrets).")
     else:
         try:
             progress_bar = st.progress(0, text="Starting...")
@@ -274,13 +271,3 @@ if st.button("🎥 Generate Video Now", type="primary"):
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
             st.exception(e)
-
-
-
-            
-            
-            
-
-            
-            
-            
