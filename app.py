@@ -264,3 +264,4 @@ if st.button("🎥 Generate Video Now", type="primary"):
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
             st.exception(e)
+            
