@@ -1,5 +1,5 @@
 streamlit
 requests
-edge-tts
 moviepy
 python-dotenv
+gtts
