@@ -17,7 +17,7 @@ import numpy as np
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 PEXELS_URL = "https://api.pexels.com/videos/search"
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent"
 
 # ------------------ HELPERS ------------------
 OUTPUT_AUDIO = "outputs/audio"
